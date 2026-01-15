@@ -1,0 +1,2 @@
+* text=auto
+/tests/case_crlf.tcl text eol=crlf

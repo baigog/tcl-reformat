@@ -12,13 +12,24 @@ Options:
 - `-indent N`, `--indent N`: Indent width in spaces (default: 4)
 - `-noalign`, `--noalign`: Disable inline `;#` comment alignment
 - `-align`, `--align`: Enable inline `;#` comment alignment
+- `--stdin`: Read input from stdin (implies `--stdout`)
+- `--stdout`: Write formatted Tcl to stdout instead of overwriting the file
+- `-V`, `--version`: Show version
 - `-h`, `--help`: Show help
 
 Examples:
 ```sh
 ./reformat.tcl -indent 2 script.tcl
 ./reformat.tcl --noalign script.tcl
+./reformat.tcl --stdin < script.tcl
+./reformat.tcl --stdout script.tcl > formatted.tcl
 ```
+
+## Behavior notes
+
+- Multiline quoted strings are reindented one level deeper while quotes remain open.
+- Line continuation only triggers with an odd trailing backslash and no trailing whitespace.
+- Input line endings are normalized to LF on output (CRLF input is accepted).
 
 ## Shell completion
 

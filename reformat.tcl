@@ -355,7 +355,9 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
     set padstr [string repeat " " $pad]
     set padlen [string length $padstr]
 
+    set line_no 0
     foreach orig $lines {
+        incr line_no
         # Blank lines
         if {[string trim $orig " \t"] eq ""} {
             lappend out_lines ""
@@ -438,7 +440,7 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
             if {$nbbraces < 0 || $lead_closes > 0} {
                 incr indent $nbbraces
                 if {$indent < 0} {
-                    error "unbalanced braces"
+                    error "unbalanced braces at line $line_no"
                 }
 
                 if {$lead_closes > 0} {
@@ -457,10 +459,10 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
     }
 
     if {$oddquotes} {
-        error "unbalanced quotes"
+        error "unbalanced quotes at end of file (line $line_no)"
     }
     if {$indent != $initial_indent} {
-        error "unbalanced braces"
+        error "unbalanced braces at end of file (line $line_no)"
     }
 
     if {$align_inline_comments} {
@@ -480,11 +482,16 @@ proc _print_help {prog} {
     puts "  -indent N, --indent N     Indent width in spaces (default: 4)"
     puts "  -noalign, --noalign       Disable inline ;# comment alignment"
     puts "  -align, --align           Enable inline ;# comment alignment"
+    puts "  --stdin                  Read Tcl from stdin (implies --stdout)"
+    puts "  --stdout                 Write formatted Tcl to stdout"
+    puts "  -V, --version             Show version"
     puts "  -h, --help                Show this help message"
     puts ""
     puts "Examples:"
     puts "  $prog -indent 2 script.tcl"
     puts "  $prog --noalign script.tcl"
+    puts "  $prog --stdin < script.tcl"
+    puts "  $prog --stdout script.tcl > formatted.tcl"
     puts ""
     puts "Completion scripts (optional):"
     puts "  bash: completions/reformat.bash"
@@ -494,16 +501,22 @@ proc _print_help {prog} {
 }
 
 set usage "reformat.tcl ?options? filename"
+set version "0.1.0"
 
 if {[info exists argv] && [llength $argv] != 0 && [file normalize [info script]] eq [file normalize $::argv0]} {
     set indent 4
     set align 1
+    set use_stdin 0
+    set use_stdout 0
     set paths {}
 
     while {[llength $argv] > 0} {
         set a [lindex $argv 0]
         if {$a eq "-h" || $a eq "--help"} {
             _print_help [file tail [info script]]
+            exit 0
+        } elseif {$a eq "-V" || $a eq "--version"} {
+            puts $version
             exit 0
         } elseif {$a eq "-indent" || $a eq "--indent"} {
             if {[llength $argv] < 2} { error $usage }
@@ -522,6 +535,14 @@ if {[info exists argv] && [llength $argv] != 0 && [file normalize [info script]]
             set align 1
             set argv [lrange $argv 1 end]
             continue
+        } elseif {$a eq "--stdin"} {
+            set use_stdin 1
+            set argv [lrange $argv 1 end]
+            continue
+        } elseif {$a eq "--stdout"} {
+            set use_stdout 1
+            set argv [lrange $argv 1 end]
+            continue
         } elseif {[string match "-*" $a]} {
             error $usage
         }
@@ -529,25 +550,37 @@ if {[info exists argv] && [llength $argv] != 0 && [file normalize [info script]]
         set argv [lrange $argv 1 end]
     }
 
-    if {[llength $paths] != 1} {
+    if {$use_stdin} {
+        if {[llength $paths] != 0} { error $usage }
+        set use_stdout 1
+    } elseif {[llength $paths] != 1} {
         error $usage
     }
 
-    set path [lindex $paths 0]
+    if {!$use_stdin} {
+        set path [lindex $paths 0]
+        set f [open $path r]
+        set data [read $f]
+        close $f
+    } else {
+        set data [read stdin]
+    }
 
-    set f [open $path r]
-    set data [read $f]
-    close $f
-
-    set permissions [file attributes $path -permissions]
-    set tmp "${path}.tmp"
-
-    set f [open $tmp w]
     set normalized [string map [list "\r\n" "\n" "\r" "\n"] $data]
-    puts -nonewline $f [reformat $normalized $indent $align]
-    close $f
+    set formatted [reformat $normalized $indent $align]
 
-    file copy -force $tmp $path
-    file delete -force $tmp
-    file attributes $path -permissions $permissions
+    if {$use_stdout} {
+        puts -nonewline stdout $formatted
+    } else {
+        set permissions [file attributes $path -permissions]
+        set tmp "${path}.tmp"
+
+        set f [open $tmp w]
+        puts -nonewline $f $formatted
+        close $f
+
+        file copy -force $tmp $path
+        file delete -force $tmp
+        file attributes $path -permissions $permissions
+    }
 }
