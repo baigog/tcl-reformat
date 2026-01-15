@@ -15,3 +15,6 @@ Current tokenizer behavior:
 - Detects command-boundary comments only after `;` at top level.
 - Inline `;#` alignment uses the same tokenizer rules to avoid false matches.
 - Continuation checks ignore trailing inline comments and require an odd trailing backslash.
+
+Notes:
+- Files named `case_commented_code*` run with `--indent-commented-code`.

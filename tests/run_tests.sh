@@ -12,13 +12,17 @@ for f in tests/case_*.tcl; do
   tmp="${base}.tmp"
   out="${base}.tcl.out"
   xfail=0
+  extra_args=()
   if [[ "$f" == *xfail_* ]]; then
     xfail=1
+  fi
+  if [[ "$f" == *commented_code* ]]; then
+    extra_args=(--indent-commented-code)
   fi
 
   cp "$f" "$tmp"
   if [[ "$f" == *unbalanced* ]]; then
-    if "$reformat" "$tmp" >/dev/null 2>&1; then
+    if "$reformat" "${extra_args[@]}" "$tmp" >/dev/null 2>&1; then
       echo "expected failure but succeeded: $f" >&2
       exit 1
     fi
@@ -26,7 +30,7 @@ for f in tests/case_*.tcl; do
     continue
   fi
 
-  if ! "$reformat" "$tmp" >/dev/null 2>&1; then
+  if ! "$reformat" "${extra_args[@]}" "$tmp" >/dev/null 2>&1; then
     if [[ $xfail -eq 1 ]]; then
       echo "xfail (reformat): $f"
       rm -f "$tmp"
