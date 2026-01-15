@@ -328,12 +328,14 @@ proc _line_continues_scan {line} {
     return 1
 }
 
-proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strings 1}} {
+proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strings 1} {indent_commented_code 0}} {
     set lines [split $tclcode "\n"]
     set out_lines {}
 
     set continued 0
     set oddquotes 0
+    set comment_active 0
+    set comment_indent 0
 
     # Para strings multilínea:
     set in_mls 0
@@ -360,12 +362,14 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
         incr line_no
         # Blank lines
         if {[string trim $orig " \t"] eq ""} {
+            set comment_active 0
             lappend out_lines ""
             continue
         }
 
         # --- Inside multiline string (quotes still open) ---
         if {$oddquotes} {
+            set comment_active 0
             if {$indent_multiline_strings && $in_mls} {
                 # Reindent string content lines: keep text, normalize leading ws
                 set payload [string trimleft $orig " \t"]
@@ -393,9 +397,51 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
 
         # Full-line comment: reindent but don't affect state
         if {[regexp {^[ \t]*#} $line]} {
+            if {$indent_commented_code} {
+                if {!$comment_active} {
+                    set comment_indent $indent
+                    set comment_active 1
+                }
+
+                set payload [string trimleft [string range $newline 1 end] " \t"]
+                set lead_closes 0
+                if {$payload ne "" && [regexp {^(\}+)} $payload _ closes]} {
+                    set lead_closes [string length $closes]
+                }
+
+                set out_indent $comment_indent
+                if {$lead_closes > 0} {
+                    set out_indent [expr {$comment_indent - $lead_closes}]
+                    if {$out_indent < 0} { set out_indent 0 }
+                }
+
+                set line "#"
+                if {$payload ne ""} {
+                    append line "[string repeat $padstr $out_indent]$payload"
+                }
+                lappend out_lines $line
+
+                if {$payload ne ""} {
+                    set scan_info [_scan_line $payload]
+                    set nbbraces [dict get $scan_info net_braces]
+                    set brace [string equal [string index $payload end] \{]
+
+                    if {$nbbraces > 0 || $brace} {
+                        incr comment_indent $nbbraces
+                    }
+                    if {$nbbraces < 0 || $lead_closes > 0} {
+                        incr comment_indent $nbbraces
+                        if {$comment_indent < 0} { set comment_indent 0 }
+                    }
+                }
+                continue
+            }
+
+            set comment_active 0
             lappend out_lines $line
             continue
         }
+        set comment_active 0
 
         # Quote tracking
         set scan_info [_scan_line $line]
@@ -484,6 +530,7 @@ proc _print_help {prog} {
     puts "  -align, --align           Enable inline ;# comment alignment"
     puts "  --stdin                  Read Tcl from stdin (implies --stdout)"
     puts "  --stdout                 Write formatted Tcl to stdout"
+    puts "  --indent-commented-code  Indent commented-out code blocks"
     puts "  -V, --version             Show version"
     puts "  -h, --help                Show this help message"
     puts ""
@@ -508,6 +555,7 @@ if {[info exists argv] && [llength $argv] != 0 && [file normalize [info script]]
     set align 1
     set use_stdin 0
     set use_stdout 0
+    set indent_commented_code 0
     set paths {}
 
     while {[llength $argv] > 0} {
@@ -543,6 +591,10 @@ if {[info exists argv] && [llength $argv] != 0 && [file normalize [info script]]
             set use_stdout 1
             set argv [lrange $argv 1 end]
             continue
+        } elseif {$a eq "--indent-commented-code"} {
+            set indent_commented_code 1
+            set argv [lrange $argv 1 end]
+            continue
         } elseif {[string match "-*" $a]} {
             error $usage
         }
@@ -567,7 +619,7 @@ if {[info exists argv] && [llength $argv] != 0 && [file normalize [info script]]
     }
 
     set normalized [string map [list "\r\n" "\n" "\r" "\n"] $data]
-    set formatted [reformat $normalized $indent $align]
+    set formatted [reformat $normalized $indent $align 1 $indent_commented_code]
 
     if {$use_stdout} {
         puts -nonewline stdout $formatted

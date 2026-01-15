@@ -14,6 +14,7 @@ Options:
 - `-align`, `--align`: Enable inline `;#` comment alignment
 - `--stdin`: Read input from stdin (implies `--stdout`)
 - `--stdout`: Write formatted Tcl to stdout instead of overwriting the file
+- `--indent-commented-code`: Indent commented-out code blocks (full-line `# ...`), keeping `#` at column 0 with no extra space
 - `-V`, `--version`: Show version
 - `-h`, `--help`: Show help
 
@@ -23,6 +24,7 @@ Examples:
 ./reformat.tcl --noalign script.tcl
 ./reformat.tcl --stdin < script.tcl
 ./reformat.tcl --stdout script.tcl > formatted.tcl
+./reformat.tcl --indent-commented-code script.tcl
 ```
 
 ## Behavior notes
