@@ -1,5 +1,5 @@
 #! /usr/bin/env tclsh
-# reformat_fixed.tcl
+# reformat.tcl
 # Reindent Tcl code and optionally align inline comments in blocks.
 
 proc eol {} {
@@ -425,20 +425,27 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
 
         # Brace logic only when quotes are balanced on this line
         if {!$oddquotes_after} {
-            set brace   [string equal [string index $newline end] \{]
-            set unbrace [string equal [string index $newline 0]  \}]
+            set brace [string equal [string index $newline end] \{]
+            set lead_closes 0
+            if {[regexp {^(\}+)} $newline _ closes]} {
+                set lead_closes [string length $closes]
+            }
 
             if {$nbbraces > 0 || $brace} {
                 incr indent $nbbraces
             }
 
-            if {$nbbraces < 0 || $unbrace} {
+            if {$nbbraces < 0 || $lead_closes > 0} {
                 incr indent $nbbraces
                 if {$indent < 0} {
                     error "unbalanced braces"
                 }
 
-                set np [expr {$unbrace ? $padlen : (-$nbbraces)*$padlen}]
+                if {$lead_closes > 0} {
+                    set np [expr {$lead_closes * $padlen}]
+                } else {
+                    set np [expr {(-$nbbraces) * $padlen}]
+                }
                 if {$np > 0} {
                     set line [string range $line $np end]
                 }
@@ -486,7 +493,7 @@ proc _print_help {prog} {
     puts "  tcsh: completions/reformat.tcsh"
 }
 
-set usage "reformat_fixed.tcl ?options? filename"
+set usage "reformat.tcl ?options? filename"
 
 if {[info exists argv] && [llength $argv] != 0 && [file normalize [info script]] eq [file normalize $::argv0]} {
     set indent 4
@@ -536,7 +543,8 @@ if {[info exists argv] && [llength $argv] != 0 && [file normalize [info script]]
     set tmp "${path}.tmp"
 
     set f [open $tmp w]
-    puts -nonewline $f [reformat [string map [list [eol] "\n"] $data] $indent $align]
+    set normalized [string map [list "\r\n" "\n" "\r" "\n"] $data]
+    puts -nonewline $f [reformat $normalized $indent $align]
     close $f
 
     file copy -force $tmp $path
