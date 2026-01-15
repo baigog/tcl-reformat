@@ -1,0 +1,4 @@
+proc case_hash_in_brackets {} {
+    set a [format {# not a comment}]        ;# real comment
+    set b "[format {# also not a comment}]" ;# real comment
+}

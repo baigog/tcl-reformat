@@ -1,0 +1,4 @@
+proc xfail_bracket_nesting {} {
+set a "[string map {[} {\[} {]} {\]}]" ;# brackets in map
+set b "prefix [format {[%s]} [string length abc]] suffix"
+}

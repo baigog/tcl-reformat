@@ -1,0 +1,7 @@
+proc xfail_comment_command_start {} {
+    if {1} { puts ok;#comment}
+    if {1} {
+        # comment at command start
+        puts ok
+    }
+}

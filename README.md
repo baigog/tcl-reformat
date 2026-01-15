@@ -1,2 +1,65 @@
-# tcl-reformat
-TCL-based script based on tokens to fix indentation and in-line comments for TCL scripts.
+# reformat.tcl
+
+Reindent Tcl code and optionally align inline `;#` comments in blocks.
+
+## Usage
+
+```sh
+./reformat.tcl [options] filename
+```
+
+Options:
+- `-indent N`, `--indent N`: Indent width in spaces (default: 4)
+- `-noalign`, `--noalign`: Disable inline `;#` comment alignment
+- `-align`, `--align`: Enable inline `;#` comment alignment
+- `-h`, `--help`: Show help
+
+Examples:
+```sh
+./reformat.tcl -indent 2 script.tcl
+./reformat.tcl --noalign script.tcl
+```
+
+## Shell completion
+
+Completion scripts live in `completions/`:
+
+- `completions/reformat.csh`
+- `completions/reformat.tcsh`
+- `completions/reformat.bash`
+- `completions/_reformat`
+
+Install by sourcing the file from your shell startup:
+
+### csh
+Add to `~/.cshrc`:
+```csh
+source /path/to/scripts/completions/reformat.csh
+```
+
+### tcsh
+Add to `~/.tcshrc`:
+```tcsh
+source /path/to/scripts/completions/reformat.tcsh
+```
+
+### bash
+Add to `~/.bashrc`:
+```bash
+source /path/to/scripts/completions/reformat.bash
+```
+
+### zsh
+Add to `~/.zshrc` and ensure `fpath` includes the folder:
+```zsh
+fpath=(/path/to/scripts/completions $fpath)
+autoload -Uz compinit && compinit
+```
+Then restart your shell.
+
+## Tests
+
+Run all tests:
+```sh
+tests/run_tests.sh
+```

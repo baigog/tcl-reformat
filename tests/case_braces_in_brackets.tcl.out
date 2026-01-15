@@ -1,0 +1,4 @@
+proc case_braces_in_brackets {} {
+    set a [format {\{x\} \{y\}}]
+    set b "[string map {\{ { } \} { }} {\{z\}}]"
+}

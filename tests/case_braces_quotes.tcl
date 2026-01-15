@@ -1,0 +1,8 @@
+proc case_braces_quotes {} {
+set a "\{not a brace\}" ;# braces in quotes
+set b "literal with \{ and \}" ;# escaped braces in quotes
+set c [list "x\}y" "\{z\}"] ;# braces in quotes in list
+if {1} {
+puts "ok" ;# \} in comment
+}
+}

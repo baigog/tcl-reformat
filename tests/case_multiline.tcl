@@ -1,0 +1,6 @@
+proc case_multiline {} {
+set a "line1 \
+line2 \
+line3" ;# continuation string
+set b "start\nline" ;# normal quoted string
+}

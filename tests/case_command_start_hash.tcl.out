@@ -1,0 +1,8 @@
+proc case_command_start_hash {} {
+    # full line comment
+    set a 1
+    # indented comment
+    if {1} { # comment after command start
+        puts ok
+    }
+}

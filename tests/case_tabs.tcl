@@ -1,0 +1,6 @@
+proc case_tabs {} {
+	set a 1		;# tabs in indent and spacing
+	if {1} {
+		set b 2	;# more tabs
+	}
+}

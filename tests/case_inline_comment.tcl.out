@@ -1,0 +1,6 @@
+proc case_inline_comment {} {
+    set a {value;# not a comment}            ;# real comment
+    set b "value;# not a comment"            ;# real comment
+    set c [list {;# not a comment} "x;# y"]  ;# real comment
+    set d [expr {1+2;# still not a comment}] ;# real comment
+}

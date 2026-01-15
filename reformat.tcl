@@ -1,0 +1,545 @@
+#! /usr/bin/env tclsh
+# reformat_fixed.tcl
+# Reindent Tcl code and optionally align inline comments in blocks.
+
+proc eol {} {
+    switch -- $::tcl_platform(platform) {
+        windows   {return "\r\n"}
+        unix      {return "\n"}
+        macintosh {return "\r"}
+        default   {error "no such platform: $::tcl_platform(platform)"}
+    }
+}
+
+proc count {string char} {
+    # Count occurrences of char in string, ignoring escaped ones.
+    set count 0
+    while {[set idx [string first $char $string]] >= 0} {
+        set backslashes 0
+        set nidx $idx
+        while {$nidx > 0 && [string equal [string index $string [expr {$nidx-1}]] \\]} {
+            incr backslashes
+            incr nidx -1
+        }
+        if {($backslashes % 2) == 0} {
+            incr count
+        }
+        set string [string range $string [expr {$idx+1}] end]
+    }
+    return $count
+}
+
+proc _is_escaped {s idx} {
+    # Return 1 if character at idx is escaped by an odd number of backslashes.
+    set count 0
+    set i [expr {$idx - 1}]
+    while {$i >= 0 && [string index $s $i] eq "\\"} {
+        incr count
+        incr i -1
+    }
+    return [expr {($count % 2) == 1}]
+}
+
+proc _tokenize_line {line {state {}}} {
+    # Tokenize a line into {type start end} tokens with parsing state.
+    array set s {in_quote 0 brace_depth 0 bracket_depth 0}
+    if {$state ne {}} { array set s $state }
+
+    set tokens {}
+    set cur_type ""
+    set cur_start 0
+    set len [string length $line]
+    set i 0
+
+    set quote_count 0
+    set net_braces 0
+    set last_sep_idx -1
+    set comment_start -1
+
+    set command_start 1
+
+    while {$i < $len} {
+        set ch [string index $line $i]
+
+        if {$command_start && !$s(in_quote) && $s(brace_depth) == 0 && $s(bracket_depth) == 0} {
+            if {$ch eq "#"} {
+                set comment_start $i
+                if {$cur_type ne ""} {
+                    lappend tokens [list $cur_type $cur_start $i]
+                }
+                lappend tokens [list comment $i $len]
+                break
+            }
+        }
+
+        if {!$s(in_quote) && $s(brace_depth) == 0 && $s(bracket_depth) == 0} {
+            if {$ch eq ";"} {
+                if {$cur_type ne ""} {
+                    lappend tokens [list $cur_type $cur_start $i]
+                    set cur_type ""
+                }
+                lappend tokens [list sep $i [expr {$i + 1}]]
+                set last_sep_idx $i
+                set command_start 1
+                incr i
+                continue
+            }
+        }
+
+        if {$s(brace_depth) == 0 && $ch eq "\\"} {
+            set next [expr {$i + 1}]
+            set token_type word
+            if {!$s(in_quote) && $s(brace_depth) == 0 && $s(bracket_depth) == 0} {
+                set token_type word
+            }
+            if {$cur_type ne $token_type} {
+                if {$cur_type ne ""} { lappend tokens [list $cur_type $cur_start $i] }
+                set cur_type $token_type
+                set cur_start $i
+            }
+            if {$next < $len} {
+                incr i 2
+            } else {
+                incr i
+            }
+            set command_start 0
+            continue
+        }
+
+        if {$s(brace_depth) == 0 && $ch eq "\""} {
+            if {![_is_escaped $line $i]} {
+                incr quote_count
+                set s(in_quote) [expr {!$s(in_quote)}]
+            }
+        }
+
+        if {!$s(in_quote)} {
+            if {$ch eq "\x7b"} {
+                if {![_is_escaped $line $i]} {
+                    incr net_braces
+                    incr s(brace_depth)
+                }
+            } elseif {$ch eq "\x7d"} {
+                if {![_is_escaped $line $i]} {
+                    incr net_braces -1
+                    if {$s(brace_depth) > 0} { incr s(brace_depth) -1 }
+                }
+            }
+        }
+
+        if {$s(brace_depth) == 0} {
+            if {$ch eq "\x5b"} {
+                if {![_is_escaped $line $i]} { incr s(bracket_depth) }
+            } elseif {$ch eq "\x5d"} {
+                if {![_is_escaped $line $i] && $s(bracket_depth) > 0} { incr s(bracket_depth) -1 }
+            }
+        }
+
+        set token_type word
+        if {!$s(in_quote) && $s(brace_depth) == 0 && $s(bracket_depth) == 0} {
+            if {$ch eq " " || $ch eq "\t"} {
+                set token_type space
+            } else {
+                set command_start 0
+            }
+        }
+
+        if {$cur_type ne $token_type} {
+            if {$cur_type ne ""} { lappend tokens [list $cur_type $cur_start $i] }
+            set cur_type $token_type
+            set cur_start $i
+        }
+
+        incr i
+    }
+
+    if {$cur_type ne ""} {
+        lappend tokens [list $cur_type $cur_start $i]
+    }
+
+    return [dict create \
+        tokens $tokens \
+        in_quote $s(in_quote) \
+        brace_depth $s(brace_depth) \
+        bracket_depth $s(bracket_depth) \
+        quote_count $quote_count \
+        net_braces $net_braces \
+        last_sep_idx $last_sep_idx \
+        comment_start $comment_start]
+}
+
+proc _scan_line {line} {
+    set info [_tokenize_line $line]
+    set last_sep [dict get $info last_sep_idx]
+    set comment_start [dict get $info comment_start]
+
+    set code_end $comment_start
+    if {$code_end < 0} { set code_end [string length $line] }
+    set code [string range $line 0 [expr {$code_end - 1}]]
+
+    set comment_data {}
+    if {$comment_start >= 0 && $last_sep >= 0} {
+        set code_inline [string range $line 0 [expr {$last_sep - 1}]]
+        set rest [string range $line [expr {$comment_start + 1}] end]
+        set rest [string trimleft $rest " \t"]
+        set comment_data [list $code_inline $rest $last_sep]
+    }
+
+    return [dict create \
+        comment $comment_data \
+        code $code \
+        quote_count [dict get $info quote_count] \
+        net_braces [dict get $info net_braces]]
+}
+
+proc _leading_ws_col {s {tabstop 8}} {
+    # visual column count for leading whitespace
+    set col 0
+    regexp {^([ \t]*)} $s _ ws
+    foreach ch [split $ws ""] {
+        if {$ch eq "\t"} {
+            set n [expr {$tabstop - ($col % $tabstop)}]
+            incr col $n
+        } else {
+            incr col 1
+        }
+    }
+    return $col
+}
+
+
+proc _split_inline_comment {line} {
+    # Returns: code, comment_text, comment_start_col
+    # Detects inline comments that start at a command boundary (after ';').
+    set info [_scan_line $line]
+    return [dict get $info comment]
+}
+
+proc _expand_tabs {s {tabstop 8}} {
+    set out ""
+    set col 0
+    foreach ch [split $s ""] {
+        if {$ch eq "\t"} {
+            set n [expr {$tabstop - ($col % $tabstop)}]
+            append out [string repeat " " $n]
+            incr col $n
+        } else {
+            append out $ch
+            incr col 1
+        }
+    }
+    return $out
+}
+
+proc _net_braces {line} {
+    # Net count of braces outside of quotes and inline comments.
+    set info [_scan_line $line]
+    return [dict get $info net_braces]
+}
+
+proc _count_quotes {line} {
+    # Count quotes outside of braces and inline comments.
+    set info [_scan_line $line]
+    return [dict get $info quote_count]
+}
+
+proc _align_inline_comment_blocks {lines {min_gap 1} {tabstop 8}} {
+    set out {}
+    set i 0
+    set n [llength $lines]
+
+    while {$i < $n} {
+        set line [lindex $lines $i]
+        set parts [_split_inline_comment $line]
+        if {$parts eq {}} {
+            lappend out $line
+            incr i
+            continue
+        }
+
+        set base_ws [_leading_ws_col $line $tabstop]
+
+        # Collect block: contiguous + same indent + has ;#
+        set block_idx {}
+        set block_parts {}
+        set j $i
+        while {$j < $n} {
+            set l [lindex $lines $j]
+            if {[_leading_ws_col $l $tabstop] != $base_ws} break
+            set p [_split_inline_comment $l]
+            if {$p eq {}} break
+            lappend block_idx $j
+            lappend block_parts $p
+            incr j
+        }
+
+        # Target column computed by VISUAL length (tabs expanded), but do not rewrite code
+        set target 0
+        foreach p $block_parts {
+            lassign $p code comment col
+            set code [string map [list \u00A0 " "] $code]          ;# NBSP -> space (solo por seguridad)
+            set code_rt [string trimright $code " \t"]
+            set clen [string length [_expand_tabs $code_rt $tabstop]]
+            if {$clen > $target} { set target $clen }
+        }
+
+        # Emit aligned lines (keep original code_rt, just pad with spaces)
+        set k 0
+        foreach idx $block_idx {
+            lassign [lindex $block_parts $k] code comment col
+            set code [string map [list \u00A0 " "] $code]
+            set code_rt [string trimright $code " \t"]
+
+            set clen [string length [_expand_tabs $code_rt $tabstop]]
+            set padlen [expr {($target - $clen) + $min_gap}]
+
+            # Important: DON'T touch tabs inside code_rt. Only append spaces AFTER it.
+            set aligned "${code_rt}[string repeat " " $padlen];#"
+            set comment [string trimleft $comment " \t"]
+            if {$comment ne ""} { append aligned " $comment" }
+
+            lappend out $aligned
+            incr k
+        }
+
+        set i $j
+    }
+
+    return $out
+}
+
+proc _line_continues_scan {line} {
+    # Continuation based on tokenizer analysis.
+    set info [_scan_line $line]
+    set code [dict get $info code]
+
+    set trimmed [string trimright $code " \t"]
+    if {$trimmed eq ""} { return 0 }
+    if {[string length $trimmed] != [string length $code]} { return 0 }
+
+    set i [expr {[string length $trimmed] - 1}]
+    set bcount 0
+    while {$i >= 0 && [string index $trimmed $i] eq "\\"} {
+        incr bcount
+        incr i -1
+    }
+    if {($bcount % 2) == 0} { return 0 }
+    if {[_net_braces $trimmed] != 0} { return 0 }
+    return 1
+}
+
+proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strings 1}} {
+    set lines [split $tclcode "\n"]
+    set out_lines {}
+
+    set continued 0
+    set oddquotes 0
+
+    # Para strings multilínea:
+    set in_mls 0
+    set mls_prefix ""
+
+    # Determine initial indent from first non-blank, non-comment line
+    set indent 0
+    foreach l $lines {
+        if {[string trim $l " \t"] eq ""} { continue }
+        if {[regexp {^[ \t]*#} $l]} { continue }
+        set leading [string length $l]
+        set trimmed [string length [string trimleft $l " \t"]]
+        set indent [expr {($leading - $trimmed) / $pad}]
+        if {$indent < 0} { set indent 0 }
+        break
+    }
+
+    set initial_indent $indent
+    set padstr [string repeat " " $pad]
+    set padlen [string length $padstr]
+
+    foreach orig $lines {
+        # Blank lines
+        if {[string trim $orig " \t"] eq ""} {
+            lappend out_lines ""
+            continue
+        }
+
+        # --- Inside multiline string (quotes still open) ---
+        if {$oddquotes} {
+            if {$indent_multiline_strings && $in_mls} {
+                # Reindent string content lines: keep text, normalize leading ws
+                set payload [string trimleft $orig " \t"]
+                set line "${mls_prefix}${payload}"
+                lappend out_lines $line
+            } else {
+                # Safe mode: preserve exactly
+                lappend out_lines $orig
+            }
+
+            # Update quote state based on ORIGINAL line content
+            set qcount [count $orig \"]
+            set oddquotes [expr {($qcount + $oddquotes) % 2}]
+            if {!$oddquotes} {
+                # string closed
+                set in_mls 0
+                set mls_prefix ""
+            }
+            continue
+        }
+
+        # Normal formatting path
+        set newline [string trim $orig " \t"]
+        set line "[string repeat $padstr $indent]$newline"
+
+        # Full-line comment: reindent but don't affect state
+        if {[regexp {^[ \t]*#} $line]} {
+            lappend out_lines $line
+            continue
+        }
+
+        # Quote tracking
+        set scan_info [_scan_line $line]
+        set qcount [dict get $scan_info quote_count]
+        set nbbraces [dict get $scan_info net_braces]
+        set oddquotes_after [expr {($qcount + $oddquotes) % 2}]
+
+        # If this line OPENS a multiline string, arm MLS mode for next lines
+        if {$oddquotes_after} {
+            set in_mls 1
+            set mls_indent [expr {$indent + 1}]
+            #if {$mls_indent < 0} { set mls_indent 0 }
+            set mls_prefix "[string repeat $padstr $mls_indent]"
+        }
+
+
+        # Only apply backslash-continuation indentation when NOT entering a quoted block
+        if {!$oddquotes_after} {
+            if {[_line_continues_scan $orig]} {
+                if {!$continued} {
+                    incr indent 2
+                    set continued 1
+                }
+            } elseif {$continued} {
+                incr indent -2
+                set continued 0
+            }
+        }
+
+        # Brace logic only when quotes are balanced on this line
+        if {!$oddquotes_after} {
+            set brace   [string equal [string index $newline end] \{]
+            set unbrace [string equal [string index $newline 0]  \}]
+
+            if {$nbbraces > 0 || $brace} {
+                incr indent $nbbraces
+            }
+
+            if {$nbbraces < 0 || $unbrace} {
+                incr indent $nbbraces
+                if {$indent < 0} {
+                    error "unbalanced braces"
+                }
+
+                set np [expr {$unbrace ? $padlen : (-$nbbraces)*$padlen}]
+                if {$np > 0} {
+                    set line [string range $line $np end]
+                }
+            }
+        }
+
+        set oddquotes $oddquotes_after
+        lappend out_lines $line
+    }
+
+    if {$oddquotes} {
+        error "unbalanced quotes"
+    }
+    if {$indent != $initial_indent} {
+        error "unbalanced braces"
+    }
+
+    if {$align_inline_comments} {
+        set out_lines [_align_inline_comment_blocks $out_lines 1]
+    }
+
+    return [join $out_lines "\n"]
+}
+
+
+
+# --- CLI ---
+proc _print_help {prog} {
+    puts "Usage: $prog ?options? filename"
+    puts ""
+    puts "Options:"
+    puts "  -indent N, --indent N     Indent width in spaces (default: 4)"
+    puts "  -noalign, --noalign       Disable inline ;# comment alignment"
+    puts "  -align, --align           Enable inline ;# comment alignment"
+    puts "  -h, --help                Show this help message"
+    puts ""
+    puts "Examples:"
+    puts "  $prog -indent 2 script.tcl"
+    puts "  $prog --noalign script.tcl"
+    puts ""
+    puts "Completion scripts (optional):"
+    puts "  bash: completions/reformat.bash"
+    puts "  zsh:  completions/_reformat"
+    puts "  csh:  completions/reformat.csh"
+    puts "  tcsh: completions/reformat.tcsh"
+}
+
+set usage "reformat_fixed.tcl ?options? filename"
+
+if {[info exists argv] && [llength $argv] != 0 && [file normalize [info script]] eq [file normalize $::argv0]} {
+    set indent 4
+    set align 1
+    set paths {}
+
+    while {[llength $argv] > 0} {
+        set a [lindex $argv 0]
+        if {$a eq "-h" || $a eq "--help"} {
+            _print_help [file tail [info script]]
+            exit 0
+        } elseif {$a eq "-indent" || $a eq "--indent"} {
+            if {[llength $argv] < 2} { error $usage }
+            set indent [lindex $argv 1]
+            set argv [lrange $argv 2 end]
+            continue
+        } elseif {[string match "--indent=*" $a]} {
+            set indent [string range $a 9 end]
+            set argv [lrange $argv 1 end]
+            continue
+        } elseif {$a eq "-noalign" || $a eq "--noalign"} {
+            set align 0
+            set argv [lrange $argv 1 end]
+            continue
+        } elseif {$a eq "-align" || $a eq "--align"} {
+            set align 1
+            set argv [lrange $argv 1 end]
+            continue
+        } elseif {[string match "-*" $a]} {
+            error $usage
+        }
+        lappend paths $a
+        set argv [lrange $argv 1 end]
+    }
+
+    if {[llength $paths] != 1} {
+        error $usage
+    }
+
+    set path [lindex $paths 0]
+
+    set f [open $path r]
+    set data [read $f]
+    close $f
+
+    set permissions [file attributes $path -permissions]
+    set tmp "${path}.tmp"
+
+    set f [open $tmp w]
+    puts -nonewline $f [reformat [string map [list [eol] "\n"] $data] $indent $align]
+    close $f
+
+    file copy -force $tmp $path
+    file delete -force $tmp
+    file attributes $path -permissions $permissions
+}

@@ -1,0 +1,7 @@
+proc case_multiline_bracket_script {} {
+set a [if {1} {
+format {[%s]} ok
+} else {
+format {[%s]} no
+}]
+}

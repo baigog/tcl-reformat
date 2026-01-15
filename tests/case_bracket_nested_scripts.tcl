@@ -1,0 +1,4 @@
+proc case_bracket_nested_scripts {} {
+set a [list [string map {[} {\[} {]} {\]}] "[string length abc]"]
+set b "[if {1} {format {[%s]} ok} else {format {[%s]} no}]"
+}

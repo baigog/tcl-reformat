@@ -1,0 +1,9 @@
+#compdef reformat.tcl
+
+_arguments \
+  '*:filename:_files' \
+  '(-indent --indent)'{-indent,--indent}'[Indent width in spaces]:indent:' \
+  '--indent=[Indent width in spaces]:indent:' \
+  '(-noalign --noalign)'{-noalign,--noalign}'[Disable inline comment alignment]' \
+  '(-align --align)'{-align,--align}'[Enable inline comment alignment]' \
+  '(-h --help)'{-h,--help}'[Show help]'

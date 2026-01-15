@@ -1,0 +1,4 @@
+proc case_crlf {} {
+set a 1 ;# a
+set b 2 ;# b
+}

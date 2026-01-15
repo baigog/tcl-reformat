@@ -1,0 +1,5 @@
+proc case_braces_expr {} {
+    set a [expr {1 + 2}]            ;# normal
+    set b [expr {"\}" eq "\}"}]     ;# escaped brace in quotes inside braced expr
+    set c [expr {"\\\\" eq "\\\\"}] ;# backslash in quotes inside braced expr
+}

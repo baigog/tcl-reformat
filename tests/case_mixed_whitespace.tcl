@@ -1,0 +1,7 @@
+proc case_mixed_whitespace {} {
+	set a 1  ;# tabs + spaces
+ 	set b 2	;# mixed leading
+	if {1} {
+ 		set c 3 ;# mixed indent
+	}
+}
