@@ -19,6 +19,12 @@ for f in tests/case_*.tcl; do
   if [[ "$f" == *commented_code* ]]; then
     extra_args=(--indent-commented-code)
   fi
+  if [[ "$f" == *align_max_col* ]]; then
+    extra_args+=(--align-max-col 80)
+  fi
+  if [[ "$f" == *wrap_comment* ]]; then
+    extra_args+=(--wrap-comment 100)
+  fi
 
   cp "$f" "$tmp"
   if [[ "$f" == *unbalanced* ]]; then
@@ -64,7 +70,9 @@ for f in tests/case_*.tcl; do
   fi
 
   if [[ $xfail -eq 0 ]]; then
-    tclsh tests/check_alignment.tcl "$tmp"
+    if [[ "$f" != *align_max_col* && "$f" != *wrap_comment* ]]; then
+      tclsh tests/check_alignment.tcl "$tmp"
+    fi
   fi
 
   rm -f "$tmp"

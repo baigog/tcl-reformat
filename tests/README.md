@@ -18,3 +18,5 @@ Current tokenizer behavior:
 
 Notes:
 - Files named `case_commented_code*` run with `--indent-commented-code`.
+- Files named `case_align_max_col*` run with `--align-max-col 80`.
+- Files named `case_wrap_comment*` run with `--wrap-comment 100`.

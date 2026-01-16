@@ -12,6 +12,8 @@ Options:
 - `-indent N`, `--indent N`: Indent width in spaces (default: 4)
 - `-noalign`, `--noalign`: Disable inline `;#` comment alignment
 - `-align`, `--align`: Enable inline `;#` comment alignment
+- `--align-max-col N`: Cap the `;#` alignment column (optional)
+- `--wrap-comment N`: Move long inline `;#` comments to the next line
 - `--stdin`: Read input from stdin (implies `--stdout`)
 - `--stdout`: Write formatted Tcl to stdout instead of overwriting the file
 - `--indent-commented-code`: Indent commented-out code blocks (full-line `# ...`), keeping `#` at column 0 with no extra space
@@ -22,6 +24,8 @@ Examples:
 ```sh
 ./reformat.tcl -indent 2 script.tcl
 ./reformat.tcl --noalign script.tcl
+./reformat.tcl --align-max-col 80 script.tcl
+./reformat.tcl --wrap-comment 100 script.tcl
 ./reformat.tcl --stdin < script.tcl
 ./reformat.tcl --stdout script.tcl > formatted.tcl
 ./reformat.tcl --indent-commented-code script.tcl
@@ -32,6 +36,8 @@ Examples:
 - Multiline quoted strings are reindented one level deeper while quotes remain open.
 - Line continuation only triggers with an odd trailing backslash and no trailing whitespace.
 - Input line endings are normalized to LF on output (CRLF input is accepted).
+- `--align-max-col` ignores lines with code longer than the cap when aligning `;#` blocks.
+- `--wrap-comment` writes long inline comments as a full-line `#` at the same indent.
 
 ## Shell completion
 

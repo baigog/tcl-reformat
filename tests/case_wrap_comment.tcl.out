@@ -1,0 +1,5 @@
+if {$a} {
+    set short 1 ;# short
+    set mid 2
+    # this comment is very long and should move to the next line when wrap comment is enabled
+}

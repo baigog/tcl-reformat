@@ -243,10 +243,15 @@ proc _count_quotes {line} {
     return [dict get $info quote_count]
 }
 
-proc _align_inline_comment_blocks {lines {min_gap 1} {tabstop 8}} {
+proc _align_inline_comment_blocks {lines {min_gap 1} {tabstop 8} {max_align_col 0} {wrap_comment_col 0}} {
     set out {}
     set i 0
     set n [llength $lines]
+    set max_target 0
+    if {$max_align_col > 0} {
+        set max_target [expr {$max_align_col - $min_gap}]
+        if {$max_target < 1} { set max_target 0 }
+    }
 
     while {$i < $n} {
         set line [lindex $lines $i]
@@ -257,48 +262,62 @@ proc _align_inline_comment_blocks {lines {min_gap 1} {tabstop 8}} {
             continue
         }
 
-        set base_ws [_leading_ws_col $line $tabstop]
-
         # Collect block: contiguous + same indent + has ;#
         set block_idx {}
         set block_parts {}
+        regexp {^([ \t]*)} $line _ base_ws_str
+        set base_ws [_leading_ws_col $line $tabstop]
         set j $i
         while {$j < $n} {
             set l [lindex $lines $j]
             if {[_leading_ws_col $l $tabstop] != $base_ws} break
             set p [_split_inline_comment $l]
             if {$p eq {}} break
+            lassign $p code comment col
+            regexp {^([ \t]*)} $l _ ws_str
+            set code [string map [list \u00A0 " "] $code]
+            set code_rt [string trimright $code " \t"]
+            set clen [string length [_expand_tabs $code_rt $tabstop]]
+            set comment [string trimleft $comment " \t"]
+            set wrap 0
+            if {$wrap_comment_col > 0 && $comment ne ""} {
+                set inline_len [expr {$clen + $min_gap + 2 + 1 + [string length $comment]}]
+                if {$inline_len > $wrap_comment_col} { set wrap 1 }
+            }
+            set eligible 1
+            if {$wrap} { set eligible 0 }
+            if {$max_target > 0 && $clen > $max_target} { set eligible 0 }
             lappend block_idx $j
-            lappend block_parts $p
+            lappend block_parts [list $code_rt $comment $clen $wrap $eligible $ws_str $l]
             incr j
         }
 
         # Target column computed by VISUAL length (tabs expanded), but do not rewrite code
         set target 0
         foreach p $block_parts {
-            lassign $p code comment col
-            set code [string map [list \u00A0 " "] $code]          ;# NBSP -> space (solo por seguridad)
-            set code_rt [string trimright $code " \t"]
-            set clen [string length [_expand_tabs $code_rt $tabstop]]
+            lassign $p code_rt comment clen wrap eligible ws_str orig_line
+            if {!$eligible} { continue }
             if {$clen > $target} { set target $clen }
         }
+        if {$max_target > 0 && $target > $max_target} { set target $max_target }
 
         # Emit aligned lines (keep original code_rt, just pad with spaces)
         set k 0
         foreach idx $block_idx {
-            lassign [lindex $block_parts $k] code comment col
-            set code [string map [list \u00A0 " "] $code]
-            set code_rt [string trimright $code " \t"]
-
-            set clen [string length [_expand_tabs $code_rt $tabstop]]
-            set padlen [expr {($target - $clen) + $min_gap}]
-
-            # Important: DON'T touch tabs inside code_rt. Only append spaces AFTER it.
-            set aligned "${code_rt}[string repeat " " $padlen];#"
-            set comment [string trimleft $comment " \t"]
-            if {$comment ne ""} { append aligned " $comment" }
-
-            lappend out $aligned
+            lassign [lindex $block_parts $k] code_rt comment clen wrap eligible ws_str orig_line
+            if {$wrap} {
+                lappend out $code_rt
+                lappend out "${ws_str}# $comment"
+            } elseif {!$eligible} {
+                lappend out $orig_line
+            } else {
+                set padlen [expr {($target - $clen) + $min_gap}]
+                # Important: DON'T touch tabs inside code_rt. Only append spaces AFTER it.
+                set aligned "${code_rt}[string repeat " " $padlen];#"
+                set comment [string trimleft $comment " \t"]
+                if {$comment ne ""} { append aligned " $comment" }
+                lappend out $aligned
+            }
             incr k
         }
 
@@ -328,7 +347,7 @@ proc _line_continues_scan {line} {
     return 1
 }
 
-proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strings 1} {indent_commented_code 0}} {
+proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strings 1} {indent_commented_code 0} {align_max_col 0} {wrap_comment_col 0}} {
     set lines [split $tclcode "\n"]
     set out_lines {}
 
@@ -512,7 +531,7 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
     }
 
     if {$align_inline_comments} {
-        set out_lines [_align_inline_comment_blocks $out_lines 1]
+        set out_lines [_align_inline_comment_blocks $out_lines 1 8 $align_max_col $wrap_comment_col]
     }
 
     return [join $out_lines "\n"]
@@ -528,6 +547,8 @@ proc _print_help {prog} {
     puts "  -indent N, --indent N     Indent width in spaces (default: 4)"
     puts "  -noalign, --noalign       Disable inline ;# comment alignment"
     puts "  -align, --align           Enable inline ;# comment alignment"
+    puts "  --align-max-col N         Cap ;# alignment column (optional)"
+    puts "  --wrap-comment N          Wrap long inline comments to next line"
     puts "  --stdin                  Read Tcl from stdin (implies --stdout)"
     puts "  --stdout                 Write formatted Tcl to stdout"
     puts "  --indent-commented-code  Indent commented-out code blocks"
@@ -537,6 +558,9 @@ proc _print_help {prog} {
     puts "Examples:"
     puts "  $prog -indent 2 script.tcl"
     puts "  $prog --noalign script.tcl"
+    puts "  $prog --align-max-col 80 script.tcl"
+    puts "  $prog --wrap-comment 100 script.tcl"
+    puts "  $prog --indent-commented-code script.tcl"
     puts "  $prog --stdin < script.tcl"
     puts "  $prog --stdout script.tcl > formatted.tcl"
     puts ""
@@ -556,6 +580,8 @@ if {[info exists argv] && [llength $argv] != 0 && [file normalize [info script]]
     set use_stdin 0
     set use_stdout 0
     set indent_commented_code 0
+    set align_max_col 0
+    set wrap_comment_col 0
     set paths {}
 
     while {[llength $argv] > 0} {
@@ -591,6 +617,24 @@ if {[info exists argv] && [llength $argv] != 0 && [file normalize [info script]]
             set use_stdout 1
             set argv [lrange $argv 1 end]
             continue
+        } elseif {$a eq "--align-max-col"} {
+            if {[llength $argv] < 2} { error $usage }
+            set align_max_col [lindex $argv 1]
+            set argv [lrange $argv 2 end]
+            continue
+        } elseif {[string match "--align-max-col=*" $a]} {
+            set align_max_col [string range $a 16 end]
+            set argv [lrange $argv 1 end]
+            continue
+        } elseif {$a eq "--wrap-comment"} {
+            if {[llength $argv] < 2} { error $usage }
+            set wrap_comment_col [lindex $argv 1]
+            set argv [lrange $argv 2 end]
+            continue
+        } elseif {[string match "--wrap-comment=*" $a]} {
+            set wrap_comment_col [string range $a 15 end]
+            set argv [lrange $argv 1 end]
+            continue
         } elseif {$a eq "--indent-commented-code"} {
             set indent_commented_code 1
             set argv [lrange $argv 1 end]
@@ -619,7 +663,7 @@ if {[info exists argv] && [llength $argv] != 0 && [file normalize [info script]]
     }
 
     set normalized [string map [list "\r\n" "\n" "\r" "\n"] $data]
-    set formatted [reformat $normalized $indent $align 1 $indent_commented_code]
+    set formatted [reformat $normalized $indent $align 1 $indent_commented_code $align_max_col $wrap_comment_col]
 
     if {$use_stdout} {
         puts -nonewline stdout $formatted

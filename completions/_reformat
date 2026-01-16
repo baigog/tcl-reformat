@@ -8,6 +8,8 @@ _arguments \
   '(-align --align)'{-align,--align}'[Enable inline comment alignment]' \
   '--stdin[Read Tcl from stdin (implies --stdout)]' \
   '--stdout[Write formatted Tcl to stdout]' \
+  '--align-max-col=[Cap ;# alignment column]:column:' \
+  '--wrap-comment=[Wrap long inline comments to next line]:column:' \
   '--indent-commented-code[Indent commented-out code blocks]' \
   '(-V --version)'{-V,--version}'[Show version]' \
   '(-h --help)'{-h,--help}'[Show help]'
