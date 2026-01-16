@@ -25,6 +25,9 @@ for f in tests/case_*.tcl; do
   if [[ "$f" == *wrap_comment* ]]; then
     extra_args+=(--wrap-comment 100)
   fi
+  if [[ "$f" == *wrap_comment_noalign* ]]; then
+    extra_args+=(--noalign)
+  fi
 
   cp "$f" "$tmp"
   if [[ "$f" == *unbalanced* ]]; then

@@ -2,15 +2,6 @@
 # reformat.tcl
 # Reindent Tcl code and optionally align inline comments in blocks.
 
-proc eol {} {
-    switch -- $::tcl_platform(platform) {
-        windows   {return "\r\n"}
-        unix      {return "\n"}
-        macintosh {return "\r"}
-        default   {error "no such platform: $::tcl_platform(platform)"}
-    }
-}
-
 proc count {string char} {
     # Count occurrences of char in string, ignoring escaped ones.
     set count 0
