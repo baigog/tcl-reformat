@@ -31,6 +31,59 @@ Examples:
 ./reformat.tcl --indent-commented-code script.tcl
 ```
 
+## Before/after examples
+
+Default alignment:
+```tcl
+# before
+set a 1 ;# short
+set longer_name 2 ;# longer
+
+# after
+set a 1           ;# short
+set longer_name 2 ;# longer
+```
+
+`--align-max-col 24`:
+```tcl
+# before
+set a 1 ;# short
+set very_long_variable_name 2 ;# long
+set b 3 ;# short
+
+# after
+set a 1                 ;# short
+set very_long_variable_name 2 ;# long
+set b 3                 ;# short
+```
+
+`--wrap-comment 50`:
+```tcl
+# before
+set x 1 ;# this comment is long and should wrap
+
+# after
+set x 1
+# this comment is long and should wrap
+```
+
+`--indent-commented-code`:
+```tcl
+# before
+if {$a} {
+# if {$b} {
+# set x 1
+# }
+}
+
+# after
+if {$a} {
+#    if {$b} {
+#        set x 1
+#    }
+}
+```
+
 ## Behavior notes
 
 - Multiline quoted strings are reindented one level deeper while quotes remain open.
