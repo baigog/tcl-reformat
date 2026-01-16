@@ -16,7 +16,7 @@ for f in tests/case_*.tcl; do
   if [[ "$f" == *xfail_* ]]; then
     xfail=1
   fi
-  if [[ "$f" == *commented_code* ]]; then
+  if [[ "$f" == *commented_code* || "$f" == *commented_docstring* ]]; then
     extra_args=(--indent-commented-code)
   fi
   if [[ "$f" == *align_max_col* ]]; then

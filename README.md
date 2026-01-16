@@ -16,7 +16,7 @@ Options:
 - `--wrap-comment N`: Move long inline `;#` comments to the next line
 - `--stdin`: Read input from stdin (implies `--stdout`)
 - `--stdout`: Write formatted Tcl to stdout instead of overwriting the file
-- `--indent-commented-code`: Indent commented-out code blocks (full-line `# ...`), keeping `#` at column 0 with no extra space
+- `--indent-commented-code`: Indent commented-out code blocks (full-line `# ...`), keeping `#` at column 0; uppercase-leading comments keep a single space after `#`
 - `-V`, `--version`: Show version
 - `-h`, `--help`: Show help
 
@@ -74,6 +74,7 @@ if {$a} {
 # if {$b} {
 # set x 1
 # }
+# This is a doc comment
 }
 
 # after
@@ -81,6 +82,7 @@ if {$a} {
 #    if {$b} {
 #        set x 1
 #    }
+# This is a doc comment
 }
 ```
 

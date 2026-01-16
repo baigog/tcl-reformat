@@ -436,6 +436,10 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
 
                 set line "#"
                 if {$payload ne ""} {
+                    set trimmed_payload [string trimleft $payload " \t"]
+                    set first_char [string index $trimmed_payload 0]
+                    set needs_space [expr {$first_char ne "" && [string is upper $first_char]}]
+                    if {$needs_space} { append line " " }
                     append line "[string repeat $padstr $out_indent]$payload"
                 }
                 lappend out_lines $line
@@ -551,7 +555,7 @@ proc _print_help {prog} {
     puts "  --wrap-comment N          Wrap long inline comments to next line"
     puts "  --stdin                  Read Tcl from stdin (implies --stdout)"
     puts "  --stdout                 Write formatted Tcl to stdout"
-    puts "  --indent-commented-code  Indent commented-out code blocks"
+    puts "  --indent-commented-code  Indent commented-out code blocks (uppercase keeps '# ')"
     puts "  -V, --version             Show version"
     puts "  -h, --help                Show this help message"
     puts ""
