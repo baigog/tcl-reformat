@@ -338,7 +338,7 @@ proc _line_continues_scan {line} {
     return 1
 }
 
-proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strings 1} {indent_commented_code 0} {align_max_col 0} {wrap_comment_col 0}} {
+proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strings 1} {indent_commented_code 0} {align_max_col 0} {wrap_comment_col 0} {indent_continuations 1}} {
     set lines [split $tclcode "\n"]
     set out_lines {}
 
@@ -473,7 +473,7 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
 
 
         # Only apply backslash-continuation indentation when NOT entering a quoted block
-        if {!$oddquotes_after} {
+        if {$indent_continuations && !$oddquotes_after} {
             if {[_line_continues_scan $orig]} {
                 if {!$continued} {
                     incr indent 2
@@ -547,6 +547,8 @@ proc _print_help {prog} {
     puts "  --stdin                  Read Tcl from stdin (implies --stdout)"
     puts "  --stdout                 Write formatted Tcl to stdout"
     puts "  --indent-commented-code  Indent commented-out code blocks (uppercase keeps '# ')"
+    puts "  --no-indent-continuations"
+    puts "                           Keep continuation lines at the normal block indent"
     puts "  -V, --version             Show version"
     puts "  -h, --help                Show this help message"
     puts ""
@@ -556,6 +558,7 @@ proc _print_help {prog} {
     puts "  $prog --align-max-col 80 script.tcl"
     puts "  $prog --wrap-comment 100 script.tcl"
     puts "  $prog --indent-commented-code script.tcl"
+    puts "  $prog --no-indent-continuations script.tcl"
     puts "  $prog --stdin < script.tcl"
     puts "  $prog --stdout script.tcl > formatted.tcl"
     puts ""
@@ -607,6 +610,7 @@ if {[info exists argv] && [llength $argv] != 0 && [file normalize [info script]]
     set use_stdin 0
     set use_stdout 0
     set indent_commented_code 0
+    set indent_continuations 1
     set align_max_col 0
     set wrap_comment_col 0
     set paths {}
@@ -666,6 +670,10 @@ if {[info exists argv] && [llength $argv] != 0 && [file normalize [info script]]
             set indent_commented_code 1
             set argv [lrange $argv 1 end]
             continue
+        } elseif {$a eq "--no-indent-continuations"} {
+            set indent_continuations 0
+            set argv [lrange $argv 1 end]
+            continue
         } elseif {[string match "-*" $a]} {
             error $usage
         }
@@ -690,7 +698,7 @@ if {[info exists argv] && [llength $argv] != 0 && [file normalize [info script]]
     }
 
     set normalized [string map [list "\r\n" "\n" "\r" "\n"] $data]
-    set formatted [reformat $normalized $indent $align 1 $indent_commented_code $align_max_col $wrap_comment_col]
+    set formatted [reformat $normalized $indent $align 1 $indent_commented_code $align_max_col $wrap_comment_col $indent_continuations]
 
     if {$use_stdout} {
         puts -nonewline stdout $formatted

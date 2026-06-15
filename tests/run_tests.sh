@@ -19,6 +19,9 @@ for f in tests/case_*.tcl; do
   if [[ "$f" == *commented_code* || "$f" == *commented_docstring* ]]; then
     extra_args=(--indent-commented-code)
   fi
+  if [[ "$f" == *no_indent_continuations* ]]; then
+    extra_args+=(--no-indent-continuations)
+  fi
   if [[ "$f" == *align_max_col* ]]; then
     extra_args+=(--align-max-col 80)
   fi

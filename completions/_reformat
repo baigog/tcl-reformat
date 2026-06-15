@@ -11,5 +11,6 @@ _arguments \
   '--align-max-col=[Cap ;# alignment column]:column:' \
   '--wrap-comment=[Wrap long inline comments to next line]:column:' \
   '--indent-commented-code[Indent commented-out code blocks]' \
+  '--no-indent-continuations[Keep continuation lines at normal block indent]' \
   '(-V --version)'{-V,--version}'[Show version]' \
   '(-h --help)'{-h,--help}'[Show help]'

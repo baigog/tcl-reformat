@@ -9,9 +9,9 @@ _reformat_tcl_complete() {
       ;;
   esac
   if [[ "$cur" == -* ]]; then
-    COMPREPLY=( $(compgen -W "-indent --indent --indent= -noalign --noalign -align --align --align-max-col --align-max-col= --wrap-comment --wrap-comment= --stdin --stdout --indent-commented-code -V --version -h --help" -- "$cur") )
+    COMPREPLY=( $(compgen -W "-indent --indent --indent= -noalign --noalign -align --align --align-max-col --align-max-col= --wrap-comment --wrap-comment= --stdin --stdout --indent-commented-code --no-indent-continuations -V --version -h --help" -- "$cur") )
   else
-    COMPREPLY=( $(compgen -W "-indent --indent --indent= -noalign --noalign -align --align --align-max-col --align-max-col= --wrap-comment --wrap-comment= --stdin --stdout --indent-commented-code -V --version -h --help" -- "$cur") )
+    COMPREPLY=( $(compgen -W "-indent --indent --indent= -noalign --noalign -align --align --align-max-col --align-max-col= --wrap-comment --wrap-comment= --stdin --stdout --indent-commented-code --no-indent-continuations -V --version -h --help" -- "$cur") )
     COMPREPLY+=( $(compgen -f -- "$cur") )
   fi
 }

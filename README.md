@@ -17,6 +17,7 @@ Options:
 - `--stdin`: Read input from stdin (implies `--stdout`)
 - `--stdout`: Write formatted Tcl to stdout instead of overwriting the file
 - `--indent-commented-code`: Indent commented-out code blocks (full-line `# ...`), keeping `#` at column 0; uppercase-leading comments keep a single space after `#`
+- `--no-indent-continuations`: Keep lines after a trailing `\` at the normal block indentation
 - `-V`, `--version`: Show version
 - `-h`, `--help`: Show help
 
@@ -29,6 +30,7 @@ Examples:
 ./reformat.tcl --stdin < script.tcl
 ./reformat.tcl --stdout script.tcl > formatted.tcl
 ./reformat.tcl --indent-commented-code script.tcl
+./reformat.tcl --no-indent-continuations script.tcl
 ```
 
 ## Before/after examples
@@ -90,6 +92,7 @@ if {$a} {
 
 - Multiline quoted strings are reindented one level deeper while quotes remain open.
 - Line continuation only triggers with an odd trailing backslash and no trailing whitespace.
+- Continuation lines are indented two extra levels by default; `--no-indent-continuations` disables that extra indentation.
 - Input line endings are normalized to LF on output (CRLF input is accepted).
 - `--align-max-col` ignores lines with code longer than the cap when aligning `;#` blocks.
 - `--wrap-comment` writes long inline comments as a full-line `#` at the same indent.

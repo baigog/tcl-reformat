@@ -1,0 +1,9 @@
+proc case_no_indent_continuations {} {
+    set a 1 \
+    + 2 \
+    + 3
+    if {$a} {
+        set b [list 1 \
+        + 2]
+    }
+}
