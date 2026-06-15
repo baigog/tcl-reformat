@@ -4,6 +4,6 @@ proc case_no_indent_continuations {} {
     + 3
     if {$a} {
         set b [list 1 \
-        + 2]
+            + 2]
     }
 }

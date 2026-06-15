@@ -44,6 +44,7 @@ proc _tokenize_line {line {state {}}} {
 
     set quote_count 0
     set net_braces 0
+    set net_brackets 0
     set last_sep_idx -1
     set comment_start -1
 
@@ -120,9 +121,15 @@ proc _tokenize_line {line {state {}}} {
 
         if {$s(brace_depth) == 0} {
             if {$ch eq "\x5b"} {
-                if {![_is_escaped $line $i]} { incr s(bracket_depth) }
+                if {![_is_escaped $line $i]} {
+                    incr net_brackets
+                    incr s(bracket_depth)
+                }
             } elseif {$ch eq "\x5d"} {
-                if {![_is_escaped $line $i] && $s(bracket_depth) > 0} { incr s(bracket_depth) -1 }
+                if {![_is_escaped $line $i]} {
+                    incr net_brackets -1
+                    if {$s(bracket_depth) > 0} { incr s(bracket_depth) -1 }
+                }
             }
         }
 
@@ -155,6 +162,7 @@ proc _tokenize_line {line {state {}}} {
         bracket_depth $s(bracket_depth) \
         quote_count $quote_count \
         net_braces $net_braces \
+        net_brackets $net_brackets \
         last_sep_idx $last_sep_idx \
         comment_start $comment_start]
 }
@@ -180,7 +188,8 @@ proc _scan_line {line} {
         comment $comment_data \
         code $code \
         quote_count [dict get $info quote_count] \
-        net_braces [dict get $info net_braces]]
+        net_braces [dict get $info net_braces] \
+        net_brackets [dict get $info net_brackets]]
 }
 
 proc _leading_ws_col {s {tabstop 8}} {
@@ -343,6 +352,8 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
     set out_lines {}
 
     set continued 0
+    set continuation_indent 0
+    set bracket_balance 0
     set oddquotes 0
     set comment_active 0
     set comment_indent 0
@@ -403,6 +414,7 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
 
         # Normal formatting path
         set newline [string trim $orig " \t"]
+        set line_continues [_line_continues_scan $orig]
         set line "[string repeat $padstr $indent]$newline"
 
         # Full-line comment: reindent but don't affect state
@@ -461,6 +473,11 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
         set scan_info [_scan_line $line]
         set qcount [dict get $scan_info quote_count]
         set nbbraces [dict get $scan_info net_braces]
+        set nbbrackets [dict get $scan_info net_brackets]
+        incr bracket_balance $nbbrackets
+        if {$bracket_balance < 0} {
+            error "unbalanced brackets at line $line_no"
+        }
         set oddquotes_after [expr {($qcount + $oddquotes) % 2}]
 
         # If this line OPENS a multiline string, arm MLS mode for next lines
@@ -474,14 +491,18 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
 
         # Only apply backslash-continuation indentation when NOT entering a quoted block
         if {$indent_continuations && !$oddquotes_after} {
-            if {[_line_continues_scan $orig]} {
+            if {$line_continues} {
                 if {!$continued} {
-                    incr indent 2
                     set continued 1
+                    if {$nbbrackets <= 0} {
+                        incr indent
+                        set continuation_indent 1
+                    }
                 }
             } elseif {$continued} {
-                incr indent -2
+                incr indent -$continuation_indent
                 set continued 0
+                set continuation_indent 0
             }
         }
 
@@ -512,6 +533,27 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
                     set line [string range $line $np end]
                 }
             }
+
+            set lead_bracket_closes 0
+            if {[regexp {^([\}\]]+)} $newline _ closes]} {
+                set lead_bracket_closes [count $closes \]]
+            }
+
+            if {$nbbrackets > 0} {
+                incr indent $nbbrackets
+            }
+
+            if {$nbbrackets < 0 || $lead_bracket_closes > 0} {
+                incr indent $nbbrackets
+                if {$indent < 0} {
+                    error "unbalanced brackets at line $line_no"
+                }
+
+                if {$lead_bracket_closes > 0} {
+                    set np [expr {$lead_bracket_closes * $padlen}]
+                    set line [string range $line $np end]
+                }
+            }
         }
 
         set oddquotes $oddquotes_after
@@ -520,6 +562,9 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
 
     if {$oddquotes} {
         error "unbalanced quotes at end of file (line $line_no)"
+    }
+    if {$bracket_balance != 0} {
+        error "unbalanced brackets at end of file (line $line_no)"
     }
     if {$indent != $initial_indent} {
         error "unbalanced braces at end of file (line $line_no)"

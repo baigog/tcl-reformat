@@ -7,4 +7,7 @@ set b "x" \
 set c [list 1 \
 + 2 \
 + 3] ;# list continuation
+set d [some_proc \
+first_arg \
+]
 }

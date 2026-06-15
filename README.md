@@ -92,7 +92,9 @@ if {$a} {
 
 - Multiline quoted strings are reindented one level deeper while quotes remain open.
 - Line continuation only triggers with an odd trailing backslash and no trailing whitespace.
-- Continuation lines are indented two extra levels by default; `--no-indent-continuations` disables that extra indentation.
+- Continuation lines are indented one extra level by default; `--no-indent-continuations` disables that extra indentation.
+- Multiline command substitutions in `[...]` are indented as blocks, like brace-delimited blocks.
+- When a continued line opens `[`, the bracket block supplies the extra level instead of adding a second continuation level.
 - Input line endings are normalized to LF on output (CRLF input is accepted).
 - `--align-max-col` ignores lines with code longer than the cap when aligning `;#` blocks.
 - `--wrap-comment` writes long inline comments as a full-line `#` at the same indent.
