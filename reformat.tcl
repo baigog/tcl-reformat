@@ -356,7 +356,10 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
     set bracket_balance 0
     set oddquotes 0
     set comment_active 0
+    set comment_base_indent 0
     set comment_indent 0
+    set comment_continued 0
+    set comment_continuation_indent 0
 
     # Para strings multilínea:
     set in_mls 0
@@ -421,43 +424,60 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
         if {[regexp {^[ \t]*#} $line]} {
             if {$indent_commented_code} {
                 if {!$comment_active} {
+                    set comment_base_indent $indent
                     set comment_indent $indent
+                    set comment_continued 0
+                    set comment_continuation_indent 0
                     set comment_active 1
                 }
 
                 set payload [string trimleft [string range $newline 1 end] " \t"]
-                set lead_closes 0
-                if {$payload ne "" && [regexp {^(\}+)} $payload _ closes]} {
-                    set lead_closes [string length $closes]
+                set lead_brace_closes 0
+                set lead_bracket_closes 0
+                if {$payload ne "" && [regexp {^([\}\]]+)} $payload _ closes]} {
+                    set lead_brace_closes [count $closes \}]
+                    set lead_bracket_closes [count $closes \]]
                 }
 
-                set out_indent $comment_indent
-                if {$lead_closes > 0} {
-                    set out_indent [expr {$comment_indent - $lead_closes}]
-                    if {$out_indent < 0} { set out_indent 0 }
-                }
+                set out_indent [expr {
+                    $comment_indent - $lead_brace_closes - $lead_bracket_closes
+                }]
+                if {$out_indent < 0} { set out_indent 0 }
 
-                set line "#"
+                set line "[string repeat $padstr $comment_base_indent]#"
                 if {$payload ne ""} {
-                    set trimmed_payload [string trimleft $payload " \t"]
-                    set first_char [string index $trimmed_payload 0]
-                    set needs_space [expr {$first_char ne "" && [string is upper $first_char]}]
-                    if {$needs_space} { append line " " }
-                    append line "[string repeat $padstr $out_indent]$payload"
+                    set relative_indent [expr {$out_indent - $comment_base_indent}]
+                    if {$relative_indent < 0} { set relative_indent 0 }
+                    append line " [string repeat $padstr $relative_indent]$payload"
                 }
                 lappend out_lines $line
 
                 if {$payload ne ""} {
                     set scan_info [_scan_line $payload]
                     set nbbraces [dict get $scan_info net_braces]
-                    set brace [string equal [string index $payload end] \{]
+                    set nbbrackets [dict get $scan_info net_brackets]
+                    set line_continues [_line_continues_scan $payload]
 
-                    if {$nbbraces > 0 || $brace} {
-                        incr comment_indent $nbbraces
+                    if {$indent_continuations} {
+                        if {$line_continues} {
+                            if {!$comment_continued} {
+                                set comment_continued 1
+                                if {$nbbrackets <= 0} {
+                                    incr comment_indent
+                                    set comment_continuation_indent 1
+                                }
+                            }
+                        } elseif {$comment_continued} {
+                            incr comment_indent -$comment_continuation_indent
+                            set comment_continued 0
+                            set comment_continuation_indent 0
+                        }
                     }
-                    if {$nbbraces < 0 || $lead_closes > 0} {
-                        incr comment_indent $nbbraces
-                        if {$comment_indent < 0} { set comment_indent 0 }
+
+                    incr comment_indent $nbbraces
+                    incr comment_indent $nbbrackets
+                    if {$comment_indent < 0} {
+                        set comment_indent 0
                     }
                 }
                 continue
@@ -581,7 +601,7 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
 
 # --- CLI ---
 proc _print_help {prog} {
-    puts "Usage: $prog ?options? filename"
+    puts "Usage: $prog ?options? file ?file ...?"
     puts ""
     puts "Options:"
     puts "  -indent N, --indent N     Indent width in spaces (default: 4)"
@@ -591,7 +611,7 @@ proc _print_help {prog} {
     puts "  --wrap-comment N          Wrap long inline comments to next line"
     puts "  --stdin                  Read Tcl from stdin (implies --stdout)"
     puts "  --stdout                 Write formatted Tcl to stdout"
-    puts "  --indent-commented-code  Indent commented-out code blocks (uppercase keeps '# ')"
+    puts "  --indent-commented-code  Indent commented-out code blocks after an aligned '# '"
     puts "  --no-indent-continuations"
     puts "                           Keep continuation lines at the normal block indent"
     puts "  -V, --version             Show version"
@@ -604,6 +624,8 @@ proc _print_help {prog} {
     puts "  $prog --wrap-comment 100 script.tcl"
     puts "  $prog --indent-commented-code script.tcl"
     puts "  $prog --no-indent-continuations script.tcl"
+    puts "  $prog scripts/*.tcl tests/*.tcl"
+    puts "  $prog \"scripts/*/*.tcl\""
     puts "  $prog --stdin < script.tcl"
     puts "  $prog --stdout script.tcl > formatted.tcl"
     puts ""
@@ -634,9 +656,9 @@ proc _print_help {prog} {
     puts "             # }"
     puts "             }"
     puts "    after:   if {\$a} {"
-    puts "             #    if {\$b} {"
-    puts "             #        set x 1"
-    puts "             #    }"
+    puts "                 # if {\$b} {"
+    puts "                 #     set x 1"
+    puts "                 # }"
     puts "             }"
     puts ""
     puts "Completion scripts (optional):"
@@ -646,7 +668,68 @@ proc _print_help {prog} {
     puts "  tcsh: completions/reformat.tcsh"
 }
 
-set usage "reformat.tcl ?options? filename"
+proc _expand_paths {patterns} {
+    set paths {}
+    set seen {}
+
+    foreach pattern $patterns {
+        if {[file isfile $pattern]} {
+            set matches [list $pattern]
+        } else {
+            set matches [glob -nocomplain -- $pattern]
+        }
+
+        if {[llength $matches] == 0} {
+            error "no files matched: $pattern"
+        }
+
+        foreach path $matches {
+            if {![file isfile $path]} { continue }
+            set normalized [file normalize $path]
+            if {[dict exists $seen $normalized]} { continue }
+            dict set seen $normalized 1
+            lappend paths $path
+        }
+    }
+
+    if {[llength $paths] == 0} {
+        error "no files matched"
+    }
+    return $paths
+}
+
+proc _format_data {data indent align indent_commented_code align_max_col wrap_comment_col indent_continuations} {
+    set normalized [string map [list "\r\n" "\n" "\r" "\n"] $data]
+    return [reformat $normalized $indent $align 1 $indent_commented_code $align_max_col $wrap_comment_col $indent_continuations]
+}
+
+proc _format_file {path indent align indent_commented_code align_max_col wrap_comment_col indent_continuations} {
+    set f [open $path r]
+    try {
+        set data [read $f]
+    } finally {
+        close $f
+    }
+
+    set formatted [_format_data $data $indent $align $indent_commented_code $align_max_col $wrap_comment_col $indent_continuations]
+    set tmp "${path}.tmp"
+    set has_permissions [expr {![catch {file attributes $path -permissions} permissions]}]
+
+    set f [open $tmp w]
+    try {
+        puts -nonewline $f $formatted
+    } finally {
+        close $f
+    }
+
+    file copy -force $tmp $path
+    file delete -force $tmp
+    if {$has_permissions} {
+        file attributes $path -permissions $permissions
+    }
+}
+
+set usage "reformat.tcl ?options? file ?file ...?"
 set version "0.1.0"
 
 if {[info exists argv] && [llength $argv] != 0 && [file normalize [info script]] eq [file normalize $::argv0]} {
@@ -729,34 +812,32 @@ if {[info exists argv] && [llength $argv] != 0 && [file normalize [info script]]
     if {$use_stdin} {
         if {[llength $paths] != 0} { error $usage }
         set use_stdout 1
-    } elseif {[llength $paths] != 1} {
+    } elseif {[llength $paths] == 0} {
         error $usage
+    } else {
+        set paths [_expand_paths $paths]
+        if {$use_stdout && [llength $paths] != 1} {
+            error "--stdout requires exactly one input file"
+        }
     }
 
-    if {!$use_stdin} {
+    if {$use_stdin} {
+        set data [read stdin]
+        set formatted [_format_data $data $indent $align $indent_commented_code $align_max_col $wrap_comment_col $indent_continuations]
+        puts -nonewline stdout $formatted
+    } elseif {$use_stdout} {
         set path [lindex $paths 0]
         set f [open $path r]
-        set data [read $f]
-        close $f
-    } else {
-        set data [read stdin]
-    }
-
-    set normalized [string map [list "\r\n" "\n" "\r" "\n"] $data]
-    set formatted [reformat $normalized $indent $align 1 $indent_commented_code $align_max_col $wrap_comment_col $indent_continuations]
-
-    if {$use_stdout} {
+        try {
+            set data [read $f]
+        } finally {
+            close $f
+        }
+        set formatted [_format_data $data $indent $align $indent_commented_code $align_max_col $wrap_comment_col $indent_continuations]
         puts -nonewline stdout $formatted
     } else {
-        set permissions [file attributes $path -permissions]
-        set tmp "${path}.tmp"
-
-        set f [open $tmp w]
-        puts -nonewline $f $formatted
-        close $f
-
-        file copy -force $tmp $path
-        file delete -force $tmp
-        file attributes $path -permissions $permissions
+        foreach path $paths {
+            _format_file $path $indent $align $indent_commented_code $align_max_col $wrap_comment_col $indent_continuations
+        }
     }
 }

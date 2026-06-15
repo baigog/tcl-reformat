@@ -1,5 +1,5 @@
 if {$a} {
-#     This is a doc comment
-#     Another Line
+    # This is a doc comment
+    # Another Line
     puts done
 }

@@ -88,3 +88,6 @@ for f in tests/case_*.tcl; do
     echo "ok: $f"
   fi
  done
+
+tclsh tests/test_cli.tcl
+tclsh tests/test_commented_code.tcl

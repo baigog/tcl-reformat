@@ -19,6 +19,7 @@ Current tokenizer behavior:
 Notes:
 - Files named `case_commented_code*` run with `--indent-commented-code`.
 - Files named `case_commented_docstring*` run with `--indent-commented-code`.
+- Commented-code cases cover braces, brackets, continuations, and their interaction with `--no-indent-continuations`.
 - Files named `case_no_indent_continuations*` run with `--no-indent-continuations`.
 - Files named `case_align_max_col*` run with `--align-max-col 80`.
 - Files named `case_wrap_comment*` run with `--wrap-comment 100`.
