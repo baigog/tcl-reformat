@@ -16,7 +16,7 @@ Options:
 - `--wrap-comment N`: Move long inline `;#` comments to the next line
 - `--stdin`: Read input from stdin (implies `--stdout`)
 - `--stdout`: Write one formatted Tcl file to stdout instead of overwriting it
-- `--indent-commented-code`: Indent full-line commented code with `#` aligned to the surrounding block and relative code indentation after `# `
+- `--indent-commented-code`: Indent each full-line comment marker to the column its code line would occupy
 - `--no-indent-continuations`: Keep lines after a trailing `\` at the normal block indentation
 - `-V`, `--version`: Show version
 - `-h`, `--help`: Show help
@@ -84,7 +84,7 @@ if {$a} {
 # after
 if {$a} {
     # if {$b} {
-    #     set x 1
+        # set x 1
     # }
     # This is a doc comment
 }
@@ -97,7 +97,7 @@ if {$a} {
 - Continuation lines are indented one extra level by default; `--no-indent-continuations` disables that extra indentation.
 - Multiline command substitutions in `[...]` are indented as blocks, like brace-delimited blocks.
 - When a continued line opens `[`, the bracket block supplies the extra level instead of adding a second continuation level.
-- `--indent-commented-code` aligns `#` with the surrounding code and applies brace, bracket, and continuation indentation after `# `, so removing the markers preserves valid indentation.
+- `--indent-commented-code` places each `#` at the indentation its code line would use, so removing `# ` preserves valid indentation.
 - Input line endings are normalized to LF on output (CRLF input is accepted).
 - Multiple files and glob patterns are accepted. Quote a pattern to have `reformat.tcl` expand it instead of the shell.
 - `--stdout` requires exactly one matched input file; multi-file commands overwrite files in place.

@@ -356,7 +356,6 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
     set bracket_balance 0
     set oddquotes 0
     set comment_active 0
-    set comment_base_indent 0
     set comment_indent 0
     set comment_continued 0
     set comment_continuation_indent 0
@@ -424,7 +423,6 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
         if {[regexp {^[ \t]*#} $line]} {
             if {$indent_commented_code} {
                 if {!$comment_active} {
-                    set comment_base_indent $indent
                     set comment_indent $indent
                     set comment_continued 0
                     set comment_continuation_indent 0
@@ -444,11 +442,9 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
                 }]
                 if {$out_indent < 0} { set out_indent 0 }
 
-                set line "[string repeat $padstr $comment_base_indent]#"
+                set line "[string repeat $padstr $out_indent]#"
                 if {$payload ne ""} {
-                    set relative_indent [expr {$out_indent - $comment_base_indent}]
-                    if {$relative_indent < 0} { set relative_indent 0 }
-                    append line " [string repeat $padstr $relative_indent]$payload"
+                    append line " $payload"
                 }
                 lappend out_lines $line
 
@@ -611,7 +607,7 @@ proc _print_help {prog} {
     puts "  --wrap-comment N          Wrap long inline comments to next line"
     puts "  --stdin                  Read Tcl from stdin (implies --stdout)"
     puts "  --stdout                 Write formatted Tcl to stdout"
-    puts "  --indent-commented-code  Indent commented-out code blocks after an aligned '# '"
+    puts "  --indent-commented-code  Indent each comment marker like its code line"
     puts "  --no-indent-continuations"
     puts "                           Keep continuation lines at the normal block indent"
     puts "  -V, --version             Show version"
@@ -657,7 +653,7 @@ proc _print_help {prog} {
     puts "             }"
     puts "    after:   if {\$a} {"
     puts "                 # if {\$b} {"
-    puts "                 #     set x 1"
+    puts "                     # set x 1"
     puts "                 # }"
     puts "             }"
     puts ""
