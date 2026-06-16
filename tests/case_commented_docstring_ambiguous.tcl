@@ -1,0 +1,7 @@
+#load derates if needed
+# load derates if needed
+# file status should stay prose
+# [-no hacer]
+# (Hacer esto)
+# especificar esto (no esto)
+# (pero no hacer esto otro)

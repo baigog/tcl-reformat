@@ -1,8 +1,8 @@
 if {$outer} {
-# set total 1 \
-# + 2 \
-# + 3
-# set value [some_proc \
-# first_arg \
-# ]
+#set total 1 \
+#+ 2 \
+#+ 3
+#set value [some_proc \
+#first_arg \
+#]
 }

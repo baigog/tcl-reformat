@@ -243,7 +243,11 @@ proc _count_quotes {line} {
     return [dict get $info quote_count]
 }
 
-proc _comment_payload_is_code {payload} {
+proc _comment_payload_has_leading_space {text_after_hash} {
+    return [regexp {^[ \t]+} $text_after_hash]
+}
+
+proc _comment_payload_is_strong_code {payload} {
     set text [string trimleft $payload " \t"]
     if {$text eq ""} { return 0 }
     if {[regexp {^[#]} $text]} { return 0 }
@@ -252,14 +256,8 @@ proc _comment_payload_is_code {payload} {
     if {[_line_continues_scan $text]} { return 1 }
 
     set commands {
-        after append apply array break case catch cd chan clock close concat
-        continue dict encoding eof error eval exec exit expr fblocked fconfigure
-        fcopy file fileevent flush for foreach format gets glob global history
-        if incr info interp join lappend lassign linsert list llength load lrange
-        lreplace lsearch lset lsort namespace open package pid proc puts pwd
-        read regexp regsub rename return scan seek set socket source split string
-        subst switch tell throw time trace try unset update uplevel upvar variable
-        vwait while
+        if for foreach proc while switch try catch return break continue
+        set unset incr variable global namespace
     }
 
     if {[regexp {^([[:alpha:]_][[:alnum:]_:.-]*)($|[ \t\[\{])} $text _ command]} {
@@ -267,6 +265,16 @@ proc _comment_payload_is_code {payload} {
         if {[regexp {[\[\]\{\}\\$;]} $text]} { return 1 }
     }
 
+    return 0
+}
+
+proc _comment_payload_is_code {payload has_leading_space block_is_code} {
+    if {$has_leading_space && !$block_is_code} { return 0 }
+    if {[_comment_payload_is_strong_code $payload]} { return 1 }
+    if {$block_is_code} {
+        set text [string trimleft $payload " \t"]
+        return [expr {$text ne "" && ![regexp {^[#]} $text]}]
+    }
     return 0
 }
 
@@ -378,17 +386,37 @@ proc _line_continues_scan {line} {
     return 1
 }
 
+proc _line_has_trailing_continuation {line} {
+    set info [_scan_line $line]
+    set code [dict get $info code]
+
+    set trimmed [string trimright $code " \t"]
+    if {$trimmed eq ""} { return 0 }
+    if {[string length $trimmed] != [string length $code]} { return 0 }
+
+    set i [expr {[string length $trimmed] - 1}]
+    set bcount 0
+    while {$i >= 0 && [string index $trimmed $i] eq "\\"} {
+        incr bcount
+        incr i -1
+    }
+    return [expr {($bcount % 2) == 1}]
+}
+
 proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strings 1} {indent_commented_code 0} {align_max_col 0} {wrap_comment_col 0} {indent_continuations 1}} {
     set lines [split $tclcode "\n"]
     set out_lines {}
 
     set continued 0
     set continuation_indent 0
+    set braced_word_continued 0
+    set braced_word_balance 0
     set bracket_balance 0
     set oddquotes 0
     set comment_active 0
     set comment_base_indent 0
     set comment_indent 0
+    set comment_block_is_code 0
     set comment_continued 0
     set comment_continuation_indent 0
 
@@ -449,6 +477,7 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
         # Normal formatting path
         set newline [string trim $orig " \t"]
         set line_continues [_line_continues_scan $orig]
+        set has_trailing_continuation [_line_has_trailing_continuation $orig]
         set line "[string repeat $padstr $indent]$newline"
 
         # Full-line comment: reindent but don't affect state
@@ -457,12 +486,17 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
                 if {!$comment_active} {
                     set comment_base_indent $indent
                     set comment_indent $indent
+                    set comment_block_is_code 0
                     set comment_continued 0
                     set comment_continuation_indent 0
                     set comment_active 1
                 }
 
-                set payload [string trimleft [string range $newline 1 end] " \t"]
+                set raw_payload [string range $newline 1 end]
+                set payload [string trimleft $raw_payload " \t"]
+                set payload_has_leading_space [_comment_payload_has_leading_space $raw_payload]
+                set payload_is_code [_comment_payload_is_code $payload $payload_has_leading_space $comment_block_is_code]
+                if {$payload_is_code} { set comment_block_is_code 1 }
                 set lead_brace_closes 0
                 set lead_bracket_closes 0
                 if {$payload ne "" && [regexp {^([\}\]]+)} $payload _ closes]} {
@@ -479,7 +513,7 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
                 if {$payload ne ""} {
                     if {[_comment_payload_is_decoration $payload]} {
                         append line $payload
-                    } elseif {[_comment_payload_is_code $payload]} {
+                    } elseif {$payload_is_code} {
                         set relative_indent [expr {$out_indent - $comment_base_indent}]
                         if {$relative_indent < 0} { set relative_indent 0 }
                         append line "[string repeat $padstr $relative_indent]$payload"
@@ -489,7 +523,7 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
                 }
                 lappend out_lines $line
 
-                if {$payload ne "" && [_comment_payload_is_code $payload]} {
+                if {$payload ne "" && $payload_is_code} {
                     set scan_info [_scan_line $payload]
                     set nbbraces [dict get $scan_info net_braces]
                     set nbbrackets [dict get $scan_info net_brackets]
@@ -548,7 +582,7 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
 
         # Only apply backslash-continuation indentation when NOT entering a quoted block
         if {$indent_continuations && !$oddquotes_after} {
-            if {$line_continues} {
+            if {$line_continues && !$braced_word_continued} {
                 if {!$continued} {
                     set continued 1
                     if {$nbbrackets <= 0} {
@@ -589,6 +623,17 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
                 if {$np > 0} {
                     set line [string range $line $np end]
                 }
+            }
+
+            if {$braced_word_continued} {
+                incr braced_word_balance $nbbraces
+                if {$braced_word_balance <= 0} {
+                    set braced_word_continued 0
+                    set braced_word_balance 0
+                }
+            } elseif {$has_trailing_continuation && $nbbraces > 0} {
+                set braced_word_continued 1
+                set braced_word_balance $nbbraces
             }
 
             set lead_bracket_closes 0
