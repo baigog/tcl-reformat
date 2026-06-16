@@ -270,6 +270,10 @@ proc _comment_payload_is_code {payload} {
     return 0
 }
 
+proc _comment_payload_is_decoration {payload} {
+    return [regexp {^#+$} [string trim $payload " \t"]]
+}
+
 proc _align_inline_comment_blocks {lines {min_gap 1} {tabstop 8} {max_align_col 0} {wrap_comment_col 0}} {
     set out {}
     set i 0
@@ -471,7 +475,9 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
 
                 set line "[string repeat $padstr $out_indent]#"
                 if {$payload ne ""} {
-                    if {[_comment_payload_is_code $payload]} {
+                    if {[_comment_payload_is_decoration $payload]} {
+                        append line $payload
+                    } elseif {[_comment_payload_is_code $payload]} {
                         append line $payload
                     } else {
                         append line " $payload"

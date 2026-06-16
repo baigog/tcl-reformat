@@ -1,0 +1,8 @@
+if {$a} {
+########
+# section comment
+# if {$b} {
+# puts ok
+# }
+########
+}
