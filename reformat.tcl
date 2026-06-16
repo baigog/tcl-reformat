@@ -387,6 +387,7 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
     set bracket_balance 0
     set oddquotes 0
     set comment_active 0
+    set comment_base_indent 0
     set comment_indent 0
     set comment_continued 0
     set comment_continuation_indent 0
@@ -454,6 +455,7 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
         if {[regexp {^[ \t]*#} $line]} {
             if {$indent_commented_code} {
                 if {!$comment_active} {
+                    set comment_base_indent $indent
                     set comment_indent $indent
                     set comment_continued 0
                     set comment_continuation_indent 0
@@ -473,12 +475,14 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
                 }]
                 if {$out_indent < 0} { set out_indent 0 }
 
-                set line "[string repeat $padstr $out_indent]#"
+                set line "[string repeat $padstr $comment_base_indent]#"
                 if {$payload ne ""} {
                     if {[_comment_payload_is_decoration $payload]} {
                         append line $payload
                     } elseif {[_comment_payload_is_code $payload]} {
-                        append line $payload
+                        set relative_indent [expr {$out_indent - $comment_base_indent}]
+                        if {$relative_indent < 0} { set relative_indent 0 }
+                        append line "[string repeat $padstr $relative_indent]$payload"
                     } else {
                         append line " $payload"
                     }

@@ -3,6 +3,6 @@ if {$outer} {
     #+ 2 \
     #+ 3
     #set value [some_proc \
-        #first_arg \
+    #    first_arg \
     #]
 }

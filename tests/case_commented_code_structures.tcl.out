@@ -1,16 +1,16 @@
 if {$outer} {
     #set value [some_proc \
-        #first_arg \
-        #[nested_call \
-            #second_arg \
-        #] \
+    #    first_arg \
+    #    [nested_call \
+    #        second_arg \
+    #    ] \
     #]
     #set total 1 \
-        #+ 2 \
-        #+ 3
+    #    + 2 \
+    #    + 3
     #if {$a} {
-        #puts ok
+    #    puts ok
     #} else {
-        #puts no
+    #    puts no
     #}
 }
