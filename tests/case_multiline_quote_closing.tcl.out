@@ -1,0 +1,11 @@
+set var " lala\
+    Lalsls \
+    Aldkfj \
+"
+
+proc p {} {
+    set var " lala\
+        Lalsls \
+        Aldkfj \
+    "
+}

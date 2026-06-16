@@ -422,7 +422,8 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
 
     # Para strings multilínea:
     set in_mls 0
-    set mls_prefix ""
+    set mls_content_prefix ""
+    set mls_close_prefix ""
 
     # Determine initial indent from first non-blank, non-comment line
     set indent 0
@@ -456,7 +457,11 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
             if {$indent_multiline_strings && $in_mls} {
                 # Reindent string content lines: keep text, normalize leading ws
                 set payload [string trimleft $orig " \t"]
-                set line "${mls_prefix}${payload}"
+                if {[regexp {^"([ \t]*;#.*)?$} $payload]} {
+                    set line "${mls_close_prefix}${payload}"
+                } else {
+                    set line "${mls_content_prefix}${payload}"
+                }
                 lappend out_lines $line
             } else {
                 # Safe mode: preserve exactly
@@ -469,7 +474,8 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
             if {!$oddquotes} {
                 # string closed
                 set in_mls 0
-                set mls_prefix ""
+                set mls_content_prefix ""
+                set mls_close_prefix ""
             }
             continue
         }
@@ -576,7 +582,8 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
             set in_mls 1
             set mls_indent [expr {$indent + 1}]
             #if {$mls_indent < 0} { set mls_indent 0 }
-            set mls_prefix "[string repeat $padstr $mls_indent]"
+            set mls_content_prefix "[string repeat $padstr $mls_indent]"
+            set mls_close_prefix "[string repeat $padstr $indent]"
         }
 
 
