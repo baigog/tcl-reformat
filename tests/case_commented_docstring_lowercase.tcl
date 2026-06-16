@@ -1,0 +1,4 @@
+if {$a} {
+# a normal comment
+puts done
+}

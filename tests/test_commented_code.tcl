@@ -8,7 +8,7 @@ try {
 
 set uncommented {}
 foreach line [split $formatted "\n"] {
-    regsub {^([ \t]*)# } $line {\1} line
+    regsub {^([ \t]*)#} $line {\1} line
     lappend uncommented $line
 }
 

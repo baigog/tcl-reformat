@@ -243,6 +243,33 @@ proc _count_quotes {line} {
     return [dict get $info quote_count]
 }
 
+proc _comment_payload_is_code {payload} {
+    set text [string trimleft $payload " \t"]
+    if {$text eq ""} { return 0 }
+    if {[regexp {^[#]} $text]} { return 0 }
+    if {[regexp {^[\}\]]} $text]} { return 1 }
+    if {[regexp {^[+\-*/%]} $text]} { return 1 }
+    if {[_line_continues_scan $text]} { return 1 }
+
+    set commands {
+        after append apply array break case catch cd chan clock close concat
+        continue dict encoding eof error eval exec exit expr fblocked fconfigure
+        fcopy file fileevent flush for foreach format gets glob global history
+        if incr info interp join lappend lassign linsert list llength load lrange
+        lreplace lsearch lset lsort namespace open package pid proc puts pwd
+        read regexp regsub rename return scan seek set socket source split string
+        subst switch tell throw time trace try unset update uplevel upvar variable
+        vwait while
+    }
+
+    if {[regexp {^([[:alpha:]_][[:alnum:]_:.-]*)($|[ \t\[\{])} $text _ command]} {
+        if {[lsearch -exact $commands $command] >= 0} { return 1 }
+        if {[regexp {[\[\]\{\}\\$;]} $text]} { return 1 }
+    }
+
+    return 0
+}
+
 proc _align_inline_comment_blocks {lines {min_gap 1} {tabstop 8} {max_align_col 0} {wrap_comment_col 0}} {
     set out {}
     set i 0
@@ -444,11 +471,15 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
 
                 set line "[string repeat $padstr $out_indent]#"
                 if {$payload ne ""} {
-                    append line " $payload"
+                    if {[_comment_payload_is_code $payload]} {
+                        append line $payload
+                    } else {
+                        append line " $payload"
+                    }
                 }
                 lappend out_lines $line
 
-                if {$payload ne ""} {
+                if {$payload ne "" && [_comment_payload_is_code $payload]} {
                     set scan_info [_scan_line $payload]
                     set nbbraces [dict get $scan_info net_braces]
                     set nbbrackets [dict get $scan_info net_brackets]
