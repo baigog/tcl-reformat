@@ -424,6 +424,8 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
     set in_mls 0
     set mls_content_prefix ""
     set mls_close_prefix ""
+    set quote_start_line 0
+    set quote_start_text ""
 
     # Determine initial indent from first non-blank, non-comment line
     set indent 0
@@ -580,6 +582,8 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
         # If this line OPENS a multiline string, arm MLS mode for next lines
         if {$oddquotes_after} {
             set in_mls 1
+            set quote_start_line $line_no
+            set quote_start_text $newline
             set mls_indent [expr {$indent + 1}]
             #if {$mls_indent < 0} { set mls_indent 0 }
             set mls_content_prefix "[string repeat $padstr $mls_indent]"
@@ -670,7 +674,7 @@ proc reformat {tclcode {pad 4} {align_inline_comments 1} {indent_multiline_strin
     }
 
     if {$oddquotes} {
-        error "unbalanced quotes at end of file (line $line_no)"
+        error "unbalanced quotes at end of file (line $line_no); opened at line $quote_start_line: $quote_start_text"
     }
     if {$bracket_balance != 0} {
         error "unbalanced brackets at end of file (line $line_no)"

@@ -91,3 +91,4 @@ for f in tests/case_*.tcl; do
 
 tclsh tests/test_cli.tcl
 tclsh tests/test_commented_code.tcl
+tclsh tests/test_errors.tcl
