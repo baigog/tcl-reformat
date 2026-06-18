@@ -98,7 +98,7 @@ proc _tokenize_line {line {state {}}} {
             continue
         }
 
-        if {$s(brace_depth) == 0 && $ch eq "\""} {
+        if {$s(brace_depth) == 0 && $s(bracket_depth) == 0 && $ch eq "\""} {
             if {![_is_escaped $line $i]} {
                 incr quote_count
                 set s(in_quote) [expr {!$s(in_quote)}]

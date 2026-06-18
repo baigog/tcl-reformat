@@ -1,0 +1,4 @@
+proc case_quotes_in_brackets {} {
+set cmd "command1 [format "%s}" $name] -opt2 { $new_ref }"
+set escaped "command1 \[get_name \[get_obj { $name }\]\] -opt2 { $new_ref }"
+}
